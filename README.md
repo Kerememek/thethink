@@ -1,19 +1,37 @@
-# Barebones Call + Text + Screen Share App
+# Barebones Voice + Text + Screen Share App
 
-This is a minimal Node + Socket.IO + WebRTC starter you can run locally.
+This app is now **voice-only for calling** (no webcam video), plus text chat and screen sharing.
 
 ## Features
-- 1:1 room-based voice/video call
+- 1:1 room-based voice call
 - Text chat in the same room
-- Browser screen sharing (replaces camera track while sharing)
+- Browser screen share stream
 
-## Run
+## Run locally
 ```bash
 npm install
 npm start
 ```
-Then open `http://localhost:3000` in two browser tabs/devices, join the same room name, and allow media permissions.
+Open `http://localhost:3000` on two devices/tabs and join the same room.
 
-## Notes
-- This is intentionally barebones and not production-hardened.
-- For internet-wide usage, add HTTPS and TURN servers.
+## Make it internet-wide
+For internet-wide connectivity, you should run this over HTTPS and configure TURN:
+
+1. Deploy server on a public host (e.g. Render, Fly.io, Railway, VPS).
+2. Put it behind HTTPS (Nginx/Caddy/Cloudflare tunnel, or platform TLS).
+3. Provide TURN servers in `window.TURN_CONFIG` before `app.js` loads.
+
+Example snippet to inject in `index.html` before loading `app.js`:
+```html
+<script>
+  window.TURN_CONFIG = [
+    {
+      urls: 'turn:your-turn-host.example.com:3478',
+      username: 'turnuser',
+      credential: 'turnpass'
+    }
+  ];
+</script>
+```
+
+Without TURN, many users behind strict NAT/firewalls will fail to connect.

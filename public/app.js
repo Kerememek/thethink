@@ -1,20 +1,27 @@
 const socket = io();
 const roomIdInput = document.getElementById('roomId');
 const joinBtn = document.getElementById('joinBtn');
-const micCamBtn = document.getElementById('micCamBtn');
+const micBtn = document.getElementById('micBtn');
 const shareBtn = document.getElementById('shareBtn');
 const localVideo = document.getElementById('localVideo');
 const remoteVideo = document.getElementById('remoteVideo');
+const remoteAudio = document.getElementById('remoteAudio');
 const chatInput = document.getElementById('chatInput');
 const sendBtn = document.getElementById('sendBtn');
 const messages = document.getElementById('messages');
 
 let roomId = '';
-let localStream;
+let micStream;
+let screenStream;
 let peerConnection;
 let isJoined = false;
 
-const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+const rtcConfig = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    ...(window.TURN_CONFIG || [])
+  ]
+};
 
 function logMessage(text, css = '') {
   const p = document.createElement('p');
@@ -22,6 +29,15 @@ function logMessage(text, css = '') {
   p.textContent = text;
   messages.appendChild(p);
   messages.scrollTop = messages.scrollHeight;
+}
+
+function attachExistingTracks(pc) {
+  if (micStream) {
+    micStream.getAudioTracks().forEach((track) => pc.addTrack(track, micStream));
+  }
+  if (screenStream) {
+    screenStream.getVideoTracks().forEach((track) => pc.addTrack(track, screenStream));
+  }
 }
 
 function makePeerConnection(targetId) {
@@ -34,20 +50,23 @@ function makePeerConnection(targetId) {
   };
 
   peerConnection.ontrack = (event) => {
-    remoteVideo.srcObject = event.streams[0];
+    const track = event.track;
+    if (track.kind === 'audio') {
+      remoteAudio.srcObject = event.streams[0];
+    }
+    if (track.kind === 'video') {
+      remoteVideo.srcObject = event.streams[0];
+    }
   };
 
-  if (localStream) {
-    localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
-  }
-
+  attachExistingTracks(peerConnection);
   return peerConnection;
 }
 
-async function ensureMedia() {
-  if (localStream) return;
-  localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-  localVideo.srcObject = localStream;
+async function ensureMic() {
+  if (micStream) return;
+  micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  logMessage('Voice is live', 'system');
 }
 
 joinBtn.onclick = () => {
@@ -57,43 +76,55 @@ joinBtn.onclick = () => {
   isJoined = true;
   joinBtn.disabled = true;
   roomIdInput.disabled = true;
-  micCamBtn.disabled = false;
+  micBtn.disabled = false;
+  shareBtn.disabled = false;
   chatInput.disabled = false;
   sendBtn.disabled = false;
   logMessage(`Joined room: ${roomId}`, 'system');
 };
 
-micCamBtn.onclick = async () => {
+micBtn.onclick = async () => {
   try {
-    await ensureMedia();
-    shareBtn.disabled = false;
-    logMessage('Mic + camera ready', 'system');
+    await ensureMic();
+    if (peerConnection && micStream) {
+      const hasAudioSender = peerConnection.getSenders().some((s) => s.track?.kind === 'audio');
+      if (!hasAudioSender) {
+        micStream.getAudioTracks().forEach((t) => peerConnection.addTrack(t, micStream));
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+      }
+    }
   } catch (err) {
-    logMessage(`Media error: ${err.message}`, 'system');
+    logMessage(`Mic error: ${err.message}`, 'system');
   }
 };
 
 shareBtn.onclick = async () => {
   try {
-    const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-    const screenTrack = screenStream.getVideoTracks()[0];
-    const sender = peerConnection
-      ?.getSenders()
-      .find((s) => s.track && s.track.kind === 'video');
+    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    localVideo.srcObject = screenStream;
 
-    if (sender) {
-      await sender.replaceTrack(screenTrack);
-      localVideo.srcObject = screenStream;
-      logMessage('Sharing screen...', 'system');
+    if (peerConnection) {
+      const sender = peerConnection.getSenders().find((s) => s.track?.kind === 'video');
+      const track = screenStream.getVideoTracks()[0];
+      if (sender) await sender.replaceTrack(track);
+      else peerConnection.addTrack(track, screenStream);
 
-      screenTrack.onended = async () => {
-        if (!localStream) return;
-        const camTrack = localStream.getVideoTracks()[0];
-        await sender.replaceTrack(camTrack);
-        localVideo.srcObject = localStream;
-        logMessage('Screen sharing stopped', 'system');
-      };
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
     }
+
+    screenStream.getVideoTracks()[0].onended = async () => {
+      localVideo.srcObject = null;
+      if (!peerConnection) return;
+      const sender = peerConnection.getSenders().find((s) => s.track?.kind === 'video');
+      if (sender) {
+        await sender.replaceTrack(null);
+      }
+      logMessage('Screen share stopped', 'system');
+    };
+
+    logMessage('Screen share started', 'system');
   } catch (err) {
     logMessage(`Screen share error: ${err.message}`, 'system');
   }
@@ -118,7 +149,6 @@ socket.on('chat-message', ({ from, text }) => {
 socket.on('existing-peers', async (peers) => {
   if (!peers.length) return;
   const targetId = peers[0];
-  await ensureMedia();
   makePeerConnection(targetId);
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
@@ -126,20 +156,17 @@ socket.on('existing-peers', async (peers) => {
 });
 
 socket.on('peer-joined', async (peerId) => {
-  await ensureMedia();
   makePeerConnection(peerId);
   logMessage('Peer joined', 'system');
 });
 
 socket.on('signal', async ({ from, payload }) => {
   if (!peerConnection) {
-    await ensureMedia();
     makePeerConnection(from);
   }
 
   if (payload.sdp) {
     await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-
     if (payload.sdp.type === 'offer') {
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
@@ -156,5 +183,6 @@ socket.on('peer-left', () => {
   if (peerConnection) peerConnection.close();
   peerConnection = null;
   remoteVideo.srcObject = null;
+  remoteAudio.srcObject = null;
   logMessage('Peer left', 'system');
 });

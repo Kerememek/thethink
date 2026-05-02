@@ -3,31 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Call + Text + Screen Share</title>
+    <title>Voice + Text + Screen Share</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <main>
-      <h1>Mini Realtime Room</h1>
-      <p>Share a room name with one other person and click join.</p>
+      <h1>Realtime Voice + Screen Room</h1>
+      <p>Join the same room name on two devices.</p>
 
       <section class="controls">
         <input id="roomId" placeholder="room-name" value="demo-room" />
         <button id="joinBtn">Join Room</button>
-        <button id="micCamBtn" disabled>Start Mic + Camera</button>
+        <button id="micBtn" disabled>Start Voice</button>
         <button id="shareBtn" disabled>Share Screen</button>
       </section>
 
       <section class="videos">
         <article>
-          <h2>You</h2>
+          <h2>Your screen preview</h2>
           <video id="localVideo" autoplay muted playsinline></video>
         </article>
         <article>
-          <h2>Peer</h2>
+          <h2>Peer screen feed</h2>
           <video id="remoteVideo" autoplay playsinline></video>
         </article>
       </section>
+
+      <audio id="remoteAudio" autoplay></audio>
 
       <section class="chat">
         <h2>Text Chat</h2>
