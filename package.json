@@ -1,0 +1,14 @@
+{
+  "name": "thethink",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Barebones call/text/screenshare web app",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.8.1"
+  }
+}

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voice + Text + Screen Share</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Realtime Voice + Screen Room</h1>
+      <p>Join the same room name on two devices.</p>
+
+      <section class="controls">
+        <input id="roomId" placeholder="room-name" value="demo-room" />
+        <button id="joinBtn">Join Room</button>
+        <button id="micBtn" disabled>Start Voice</button>
+        <button id="shareBtn" disabled>Share Screen</button>
+      </section>
+
+      <section class="videos">
+        <article>
+          <h2>Your screen preview</h2>
+          <video id="localVideo" autoplay muted playsinline></video>
+        </article>
+        <article>
+          <h2>Peer screen feed</h2>
+          <video id="remoteVideo" autoplay playsinline></video>
+        </article>
+      </section>
+
+      <audio id="remoteAudio" autoplay></audio>
+
+      <section class="chat">
+        <h2>Text Chat</h2>
+        <div id="messages"></div>
+        <div class="composer">
+          <input id="chatInput" placeholder="type message" disabled />
+          <button id="sendBtn" disabled>Send</button>
+        </div>
+      </section>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
